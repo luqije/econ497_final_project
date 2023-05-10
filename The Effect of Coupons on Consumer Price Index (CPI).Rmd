@@ -1,0 +1,168 @@
+---
+title: "The Effect of Coupons on Consumer Price Index (CPI)"
+author: "Luqi Jiao Emanuele"
+date: '2023-04-25'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(rlang)
+library(tidyverse)
+library(haven)
+library(clubSandwich)
+library(lmtest)
+library(readxl)
+```
+
+## Introduction
+
+Starting 2020, there is a worldwide pandemic called “COVID-19”. It is a coronavirus disease that can cause people at any age to develop serious illness or death. Since it is transmitted by human saliva, it caused many cities in China to be shut down for quarantine. Decreasing the rate of sickness and death, but also decreased the consumer price index (CPI) in each city.
+
+However, in 2021, the government of China hopes to stimulate consumption and economic growth. So, China started a new policy of giving out coupons in different cities and times. People can apply for coupons in certain fields and spend with a lower bound of cost. For example, if someone wants to buy a new car, he can apply for car industry coupons from the government and get a coupon of $5,000  off when spending more than $100,000. 
+
+For my study, I am interested to show an increase in the CPI of a city that received coupons by comparing a city that received no coupons during a period of time. I selected a large city that is close to my hometown Zhengzhou (ZZ) as my treatment group. ZZ received catering coupons of 15 million RMB (about $2.3 million) in June 2022. Catering coupons can be used instead of money to make purchases in restaurants. At this time, large food companies are giving different catering coupons that are worth 10 RMB, 20 RMB, 30 RMB, and 50 RMB. There is no selection of people who are committed to getting the coupons. The companies give out coupons on a first-come, first-serve plan. Which gives out equal opportunities for everyone in the city. (Zhang Danjie) 
+
+By using difference-in-difference (DID) method, I selected another city Handan (HD) which did not receive any coupons during the period of May to August of 2022 as the control group. The reason for me to choose this city is that it is a Northern city like ZZ, but also it is the only city that I find has similarities that did not give out coupons during the period of time mentioned above. The response variable is the consumer price index (CPI). Which is measuring the weighted average consumer expenditure. In this study, it is measured every month, and measuring the index of 100 monthly when compared with the previse month. 
+
+## Define 
+
+Following, I have defined the variables for the study:
+
+- $D_{it}$: a city received coupons
+
+- $Y_{it}$: consumer price index of city i during period t
+
+   - $Y_{0it}$: outcome of city i received coupons during period t
+   
+   - $Y_{1it}$: outcome of city i received no coupons during period t
+   
+   - t: month from May to August of 2022
+   
+   - i: Zhengzhou (ZZ) or Handan (HD)
+   
+- Treatment group: city ZZ received coupons in June
+
+- Control group: city HD received no coupons in June
+
+## Dataset
+
+The following is the data that I organized from different source of websites. It contains 8 observations and 4 variables which included: (n.d.)
+
+ - `city`: either ZZ or HD - binary response
+ 
+ - `coupon`: either 1 (received coupon) or 0 (received no coupon) - binary response
+ 
+ - `month`: month from May to August - 5 to 8
+ 
+ - `CPI`: outcome of CPIs
+ 
+As showed below:
+
+```{r}
+d <- read_excel("data.xlsx")
+head(d, 3)
+```
+
+## Graph
+
+ The following graph showed the CPI values in each month for different cities with a vertical black line showing the month that ZZ received coupons. From this graph, we can see that although city ZZ received coupons, the CPI did not increase as I expected. Whereas HD that received no coupons had a high peak in the month of July. 
+ 
+```{r}
+ggplot(d)+
+  geom_line(aes(x=month, y=CPI, color=city)) +
+  geom_vline(xintercept = 6) +
+  ylim(98, 104)
+```
+
+## Proof with Regression
+
+In the next section, I will use different regression models along with graphs to find more evidence to proof the statement that I made above.
+
+### Regression with Time Dummy
+
+The first regression is to treat the time which is the month as the dummy variable. To see if there is a strong relationships between the following variables and the response variable which is the CPI.
+
+$$Y_{it} = \alpha + \beta_1 1 \{ i = ZZ \} + \beta_2 1\{ t = month6 \} + \beta_3 1\{ i = ZZ \text{ AND } t = month6 \}  + e_{it}$$
+
+By looking at the result of robust standard error, I found that all the p-values are larger than 0.05 and the relationship between the variables and the response is not significant. We can also show this by looking at the graph, the bold line repented the fitting model in the graph. The graph shows that there are no big differences between both cities before June and after. Especially, after the month of June, both cities showed parallel lines of CPI.      
+
+```{r}
+d2 <- d %>% mutate(ZZ = ifelse(city ==  'ZZ',1,0), month6 = ifelse(month >= 6,1,0))
+
+reg <- lm(CPI ~ ZZ + month6 + ZZ*month6, data=d2)
+coeftest(reg)
+
+d2$fit <- predict(reg) 
+d2 %>% ggplot(aes(x=month, y=CPI, color=city)) + 
+  geom_line(aes(y=fit), size=1.25) + 
+  geom_line(aes(y=CPI))+ 
+  geom_vline(xintercept=6)+
+  ylim(98, 104)
+```
+
+
+### Regression with Time Trend
+
+The second regression, I treated time as a factor variable instead of as a dummy variable. 
+
+$$Y_{it} = \alpha + \beta_1 1 \{ i = ZZ \} + \beta_2 1\{ t = month \} + \beta_3 1\{ i = ZZ \text{ AND } t = month \}  + e_{it}$$
+
+The following result of robust standard error showed the p-values of all the variables are larger than 0.05, which is not significant. There is no strong relationship between the ZZ, time, and the interaction term with the CPI. Also, as the graph showed that there are no significant differences between the cities, and time before June and after of the fitted model. 
+
+```{r}
+d3 <- d %>% mutate(ZZ = ifelse(city ==  'ZZ',1,0), month6 = ifelse(month >= 6,1,0), D = ZZ * month)
+
+reg <- lm(CPI ~ ZZ + month + D, data=d3)
+coeftest(reg)
+
+d3$fit <- predict(reg) 
+d3 %>% ggplot(aes(x=month, y=CPI, color=city)) + 
+  geom_line(aes(y=fit), size=1.25) + 
+  geom_line(aes(y=CPI))+ 
+  geom_vline(xintercept=6)+
+  ylim(98, 104)
+
+```
+
+### DID
+
+As the graph show, there is not significant difference.
+
+```{r}
+d4 <- d[-8,]
+d4 <- d4[-4,]
+d4 <- d4 %>% mutate(count = c(101.1,101.5,101.8,100.8,101.5,102.3))
+d4 %>% ggplot(aes(x=month, y=CPI, color=city)) + 
+  geom_line(aes(y=count))+ 
+  geom_line(aes(y=CPI)) + 
+  geom_vline(xintercept=6) +
+  ylim(98, 104)
+```
+
+## Bias
+
+The following, I will explain in detail about the bias that could caused receiving coupons did not effect on Zhengzhou; CPI during May to August of 2022.
+
+### Selection Bias
+
+I think there might be a bias in selecting the cities as the treatment and control groups. Because Zhengzhou is a large city and the capital of Henan province. It covers an area of 2,922 square miles with a population of 4.94 million in 2018. Also, the yearly GDP of Zhengzhou is about 1.014 trillion (RMB) in 2018. (n.d.) Whereas Handan is a small city in Hebei province. It covers 4,659 square miles with a population of 2.5 million in 2018. The yearly GDP of 345.46 billion in 2018. This information shows that Handan is a city that is much smaller than Zhengzhou in population and land. Also, with a big difference in the GDP. (2019)   
+
+## Conclsuion
+
+To conclude, with a purpose of Zhengzhou received coupons should have an increased CPI as time goes when compared with Handan which received no coupons. However, as the study with different regression models and DID showed. There is no relationship between the CPI with coupons over a period of time. I think the reason for that is because as a tradition, Chinese people tend to save more money than spending. Even with coupons, when people received coupons, does not necessarily mean that they will spend it as soon as they got it. Also, the Chinese like to cook for themselves, so if there are not any big holidays, they tend to eat at home more than go to a restaurant. People might like to save the coupons until they decide to go out to celebrate someone's birthday or holiday. This could be the cause of having no impact on CPI in Zhengzhou. 
+
+## Reference
+
+Monthly Statistical Report - Zhengzhou Municipal Bureau of Statistics. (n.d.). Retrieved May 3, 2023, from https://tjj.zhengzhou.gov.cn/tjyb/index.jhtml 
+
+Statistics Bureau Statistics-Handan Municipal People's Government. (n.d.). Retrieved May 3, 2023, from https://www.hd.gov.cn/hdzfxxgk/gszbm/auto23694/tjjfdzdgknr/tjjtjsj/index.html 
+
+The 2018 GDP of Hebei Province has been released. Who are the top five cities? The 2018 GDP of Hebei Province has been released. Who are the top five cities? |Hebei Province|GDP Per Capita|Handan City_Sina News. (2019, February 13). Retrieved May 3, 2023, from https://k.sina.com.cn/article_5793900703_15957e89f00100ej26.html 
+
+
+Zhang Danjie. (n.d.). @ZhengzhouPeople! At 10 a.m. on June 23, 15 million yuan Zhengzhou catering coupons came. @ZhengzhouPeople! At 10 a.m. on June 23, 15 million yuan of Zhengzhou catering coupons came_ChineseWeb. Retrieved May 3, 2023, from http://henan.china.com.cn/2022-06/23/content_42012382.htm 
+
+Zhengzhou, China Metro Area Population 1950-2023. MacroTrends. (n.d.). Retrieved May 3, 2023, from https://www.macrotrends.net/cities/20793/zhengzhou/population 
+
